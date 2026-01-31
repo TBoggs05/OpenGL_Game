@@ -2,25 +2,16 @@
 
 const char *vertexShaderSource = "#version 330 core\n"
     "layout (location = 0) in vec3 aPos;\n"
-    "layout (location = 1) in vec3 aColor;\n"
-
-    "out vec3 ourColor;\n"
-
     "void main()\n"
     "{\n"
-    "   gl_Position = vec4(aPos, 1.0);\n"
-    "   ourColor = aColor;\n"
+    "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
     "}\0";
 
 const char *fragmentShaderSource = "#version 330 core\n"
-    "in vec3 ourColor;\n"
-    "out vec4 fragColor;\n"
-
-    //"uniform vec4 ourColor;\n"
-
+    "out vec4 FragColor;\n"
     "void main()\n"
     "{\n"
-    "   fragColor = vec4(ourColor, 1.0);\n"
+    "   FragColor = vec4(1.0f, 0.5f, 1.0f, 1.0f);\n"
     "}\n";
 
 const char *yellowFragmentShaderSource = "#version 330 core\n"
@@ -127,9 +118,9 @@ int main()
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
     float verticesOne[] = {
-     -0.75f,  0.0f, 0.0f, 0.0f, 0.0f, 0.0f,  //left point
-     -0.5f, -0.5f, 0.0f,   1.0f, 1.0f, 0.0f,  //peak
-     -0.25f,  0.0f, 0.0f, 0.0f, 0.0f, 1.0f,  //right point
+     -0.75f,  0.0f, 0.0f,  //left point
+     -0.5f, 0.5f, 0.0f,  //peak
+     -0.25f,  0.0f, 0.0f,  //right point
 
     };
     float verticesTwo[] = {
@@ -147,12 +138,8 @@ int main()
     glBindVertexArray(VAOs[0]);
     glBindBuffer(GL_ARRAY_BUFFER, VBOs[0]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(verticesOne), verticesOne, GL_STATIC_DRAW);
-    //params go: location, location_size, type, normalization, stride_size, offset (0 since we start with position attribute, for color its non zero, and is size of this attribute)
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);   //6*(float_size=4) is our stride since we store 3 vertices w/ 6 points each
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-    //Color attributes from shader
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3* sizeof(float)));
-    glEnableVertexAttribArray(1);
     //second triangle setup
     //---------------------
     glBindVertexArray(VAOs[1]);
@@ -191,20 +178,12 @@ int main()
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-
         // draw our first triangle
         glUseProgram(shaderProgram);
         glBindVertexArray(VAOs[0]);
         glDrawArrays(GL_TRIANGLES, 0,3);
 
-
-        //render the triangle
-        glBindVertexArray(VAOs[0]);
-        glDrawArrays(GL_TRIANGLES, 0,3);
-
-        
         glUseProgram(yellowShaderProgram);
-        //render the other triangle
         glBindVertexArray(VAOs[1]);
         glDrawArrays(GL_TRIANGLES, 0,3);
  
@@ -218,7 +197,6 @@ int main()
     glDeleteVertexArrays(2, VAOs);
     glDeleteBuffers(2, VBOs);
     glDeleteProgram(shaderProgram);
-    glDeleteProgram(yellowShaderProgram);
 
     glfwTerminate();
     return 0;
