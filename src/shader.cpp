@@ -1,5 +1,5 @@
 #include "shader.h"
-
+//we take the vertex shader and fragment shader information, create the shaders, compile and link them.
 Shader::Shader(const char* vertexPath, const char* fragmentPath){
 
     //1. retrieve the vertex/fragment source code from filePath
@@ -7,6 +7,7 @@ Shader::Shader(const char* vertexPath, const char* fragmentPath){
     std::string fragmentCode;
     std::ifstream vShaderFile;
     std::ifstream fShaderFile;
+
     //ensure ifstream objects can throw exceptions:
     vShaderFile.exceptions (std::ifstream::failbit | std::ifstream::badbit);
     fShaderFile.exceptions (std::ifstream::failbit | std::ifstream::badbit);
@@ -28,6 +29,7 @@ Shader::Shader(const char* vertexPath, const char* fragmentPath){
     catch(std::ifstream::failure e)
     {
         std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ" << std::endl;
+        std::cout << e.what() << std::endl;
     }
     const char* vShaderCode = vertexCode.c_str();
     const char* fShaderCode = fragmentCode.c_str();
