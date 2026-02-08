@@ -62,6 +62,7 @@ int main()
         0, 1, 3, // first triangle
         1, 2, 3  // second triangle
     };
+
     unsigned int VBOs[1], VAOs[1], EBOs[1];
 
     glGenVertexArrays(1, VAOs);
