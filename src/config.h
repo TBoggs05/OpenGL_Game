@@ -6,3 +6,8 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <image_loading/stb_image.h>    //stb_image loader is open source image->pixel buffer converter (not enough time to write custom one for this project)
+
+//Header-Only Libraries to handle vector + matrix structures to save time.
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
