@@ -8,8 +8,7 @@ find_package(glfw3 REQUIRED)
 
 add_executable(opengl_game
     src/main.cpp 
-    src/glad.c  
-    src/shader.cpp
+    src/glad.c 
 )
 
 target_include_directories(opengl_game PRIVATE dependencies)
