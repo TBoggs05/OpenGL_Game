@@ -2,8 +2,8 @@
 #include "camera.h"
 #include "shader.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include <image_loading/stb_image.h>    //stb_image loader is open source image->pixel buffer converter (not enough time to write custom one for this project)
+//#define STB_IMAGE_IMPLEMENTATION
+//#include <image_loading/stb_image.h>    //stb_image loader is open source image->pixel buffer converter (not enough time to write custom one for this project)
 
     //Time Variables
     float deltaTime = 0.0f; //Time between current frame and last frame
@@ -18,6 +18,14 @@
     float lastX = SCR_WIDTH / 2.0f;
     float lastY = SCR_HEIGHT / 2.0f;
     bool firstMouse = true;
+
+    //Game Variables (Timer, Players, Cubes)
+    int currColor; //will be randomly selected every 3 seconds
+    float resetTime = 3.0f; //time to reset to
+    float timeRemaining = resetTime; //timer
+    float lastPrintedTime = timeRemaining;
+    int playerOneLives = 2;
+    int playerTwoLives = 2;
 
     //function definitions
     void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
@@ -68,12 +76,7 @@
         std::cout << "New Color is: "<< colorCodes[i] << colors[i] << "\033[0m" << std::endl;
         return i;
     }
-    int currColor; //will be randomly selected every 3 seconds
-    float resetTime = 3.0f; //time to reset to
-    float timeRemaining = resetTime; //timer
-    float lastPrintedTime = timeRemaining;
-    int playerOneLives = 2;
-    int playerTwoLives = 2;
+    
     bool checkWinners(){
 
         return false;
@@ -110,9 +113,8 @@ int main()
         return -1;
     }
 
-    //creating our shader objects
+    //creating our shader object
     Shader triangleShader("shaders/triangleShader.vs", "shaders/triangleShader.fs");
-    Shader yellowTriangleShader("shaders/triangleShader.vs", "shaders/yellowTriangleShader.fs");
 
     // --- Vertex Data ---
 // Each face has a solid color (r,g,b)
@@ -190,7 +192,8 @@ float vertices[] = {
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
-
+    //Texture loading (we ended up not using this)
+    /*
     // load and create a texture 
     // -------------------------
     unsigned int texture1, texture2;
@@ -218,6 +221,7 @@ float vertices[] = {
     }
     stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
     stbi_image_free(data);
+    
 
     // tell opengl for each sampler to which texture unit it belongs to (only has to be done once)
     // -------------------------------------------------------------------------------------------
@@ -226,13 +230,13 @@ float vertices[] = {
     //glUniform1i(glGetUniformLocation(triangleShader.ID, "texture1"), 0);
     // or set it via the texture class
     triangleShader.setInt("texture2", 1);
-    
+    */
     
 
     // uncomment this call to draw in wireframe polygons.
      //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-
+    triangleShader.use();
     currColor = selectRandomColor(); //select our first color for the game!
     //RENDER LOOP
     while(!glfwWindowShouldClose(window))
@@ -252,11 +256,6 @@ float vertices[] = {
         triangleShader.use();
 
 
-        //MODEL, VIEW, AND PROJECTION MATRICES
-       // glm::mat4 model = glm::mat4(1.0f);
-       // model = glm::rotate(model, (float)glfwGetTime() * glm::radians(50.0f), glm::vec3(0.5f, 1.0f, 0.0f)); 
-
-
        // camera/view transformation
         glm::mat4 view = camera.GetViewMatrix();
         triangleShader.setMat4("view", view);
@@ -274,8 +273,8 @@ float vertices[] = {
           // bind textures on corresponding texture units
            // glActiveTexture(GL_TEXTURE0);
           //  glBindTexture(GL_TEXTURE_2D, texture1);
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, texture2);
+          //  glActiveTexture(GL_TEXTURE1);
+          //  glBindTexture(GL_TEXTURE_2D, texture2);
 
             
 
@@ -290,8 +289,7 @@ float vertices[] = {
             glBindVertexArray(VAO);
             //uncomment to draw single cube.
             //glDrawArrays(GL_TRIANGLES, 0, 36);
-            
-            //random rotation code
+        
             int faces[2];
             for(unsigned int i = 0; i < 2; i++)
             {
@@ -316,7 +314,7 @@ float vertices[] = {
                 std::cout << "time remaining: " << lastPrintedTime+1 << std::endl;
             }
             if(timeRemaining <= 0){
-                std::cout << "faces[0]: " << faces[0] << " faces[1]: " << faces[1] << " currColor: " << currColor << std::endl;
+                //std::cout << "faces[0]: " << faces[0] << " faces[1]: " << faces[1] << " currColor: " << currColor << std::endl;
                 if(faces[0] == currColor && faces[1] == currColor){ //if theres no winner, continue
                     lastPrintedTime = timeRemaining = resetTime;
                     currColor = selectRandomColor();
@@ -384,7 +382,7 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
-    float rotationSpeed = 3 * deltaTime; // radians per second
+    float rotationSpeed = 3 * deltaTime;
 
     // Left cube (WASD)
     if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
@@ -405,17 +403,6 @@ void processInput(GLFWwindow *window)
         cubeRotation[1].y -= rotationSpeed; // rotate left
     if(glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS)
         cubeRotation[1].y += rotationSpeed; // rotate right
-
-    /*
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS){}
-    //    camera.ProcessKeyboard(FORWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS){}
-    //    camera.ProcessKeyboard(BACKWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS){}
-     //   camera.ProcessKeyboard(LEFT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS){}
-     //   camera.ProcessKeyboard(RIGHT, deltaTime);
-     */
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) //callback to resize window
