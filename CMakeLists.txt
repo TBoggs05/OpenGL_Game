@@ -9,6 +9,7 @@ find_package(glfw3 REQUIRED)
 add_executable(opengl_game
     src/main.cpp 
     src/glad.c 
+    src/mesh.cpp
 )
 
 target_include_directories(opengl_game PRIVATE dependencies)

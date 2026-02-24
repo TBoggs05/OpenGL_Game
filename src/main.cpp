@@ -1,13 +1,17 @@
 #include "config.h"
 #include "camera.h"
 #include "shader.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <image_loading/stb_image.h>    //stb_image loader is open source image->pixel buffer converter (not enough time to write custom one for this project)
+
     //Time Variables
     float deltaTime = 0.0f; //Time between current frame and last frame
     float lastFrame = 0.0f; //Time of last Frame
 
     //Settings
-    const unsigned int SCR_WIDTH = 800;
-    const unsigned int SCR_HEIGHT = 600;
+    const unsigned int SCR_WIDTH = 1000;
+    const unsigned int SCR_HEIGHT = 700;
 
     //Camera
     Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
@@ -22,12 +26,85 @@
     void processInput(GLFWwindow *window);
     GLFWwindow* initOpenGL();
 
+    //positions of the player cubes
+    glm::vec3 cubePositions[] = {
+    glm::vec3( -1.0f,  0.0f,  -0.45f), //left cube
+    glm::vec3( 1.0f,  0.0f,  -0.45f),  //right cube
+    };
+
+    glm::vec3 cubeRotation[2] = {
+    glm::vec3(0.0f), // left cube
+    glm::vec3(0.0f)  // right cube
+    };
+    glm::vec3 faceNormals[6] = {
+        { 0.0f,  0.0f,  1.0f}, // front
+        { 0.0f,  0.0f, -1.0f}, // back
+        { 1.0f,  0.0f,  0.0f}, // right
+        {-1.0f,  0.0f,  0.0f}, // left
+        { 0.0f,  1.0f,  0.0f}, // top
+        { 0.0f, -1.0f,  0.0f}  // bottom
+    };
+    int getFrontFace(const glm::mat4 &modelMatrix, const glm::vec3 &cubePos, const glm::vec3 &camPos)
+    {
+        float maxDot = -1.0f;
+        int frontFace = -1;
+
+        glm::vec3 cameraDir = glm::normalize(camPos - cubePos);
+
+        for(int f = 0; f < 6; f++){
+            glm::vec3 worldNormal = glm::vec3(modelMatrix * glm::vec4(faceNormals[f], 0.0f));
+            float dot = glm::dot(worldNormal, cameraDir);
+            if(dot > maxDot){
+                maxDot = dot;
+                frontFace = f;
+            }
+        }
+        return frontFace; // index 0-5 maps our colors
+    }
+    std::string colors[6] = {"green","red","yellow","blue","magenta","cyan"};
+    std::string colorCodes[6] = {"\033[32m","\033[31m","\033[33m","\033[34m","\033[35m","\033[36m",};
+    int selectRandomColor(){    //returns a number between 0 and 5
+        int i = rand() % 6;
+        std::cout << "New Color is: "<< colorCodes[i] << colors[i] << "\033[0m" << std::endl;
+        return i;
+    }
+    int currColor; //will be randomly selected every 3 seconds
+    float resetTime = 3.0f; //time to reset to
+    float timeRemaining = resetTime; //timer
+    float lastPrintedTime = timeRemaining;
+    int playerOneLives = 2;
+    int playerTwoLives = 2;
+    bool checkWinners(){
+
+        return false;
+    }
+    void handleOutcome(int oneChoice, int twoChoice, int truth){
+        if(oneChoice != truth){
+                playerOneLives--; 
+                std::cout << "\033[31m" << "Player One Lives: " << playerOneLives << "\033[0m" << std::endl;
+        }
+        if(twoChoice != truth){
+                playerTwoLives--;
+                std::cout << "\033[31m" << "Player Two Lives: " << playerTwoLives << "\033[0m" << std::endl;
+        }
+        if(playerOneLives < 1 && playerTwoLives < 1){
+                std::cout << "\033[31m" << "GAME OVER! " << "\033[33m" << "PLAYERS TIE" <<"\033[0m" << std::endl;
+        }
+        else if(playerOneLives < 1){
+                std::cout << "\033[31m" << "GAME OVER! " << "\033[32m" << "PLAYER TWO WINS!" <<"\033[0m" << std::endl;
+        }
+        else if(playerTwoLives < 1){
+                std::cout << "\033[31m" << "GAME OVER! " << "\033[32m" << "PLAYER ONE WINS!" <<"\033[0m" << std::endl;
+        }
+
+    }
 int main()
 {
     //error checking vars
     int  success;
     char infoLog[512];
-
+     // Seed with current time
+    srand(time(NULL)); 
     GLFWwindow* window = initOpenGL();
     if(window == nullptr){
         return -1;
@@ -37,95 +114,82 @@ int main()
     Shader triangleShader("shaders/triangleShader.vs", "shaders/triangleShader.fs");
     Shader yellowTriangleShader("shaders/triangleShader.vs", "shaders/yellowTriangleShader.fs");
 
-    //we designate a new set of vertices that include mapped texture coords for each vertex, so our stride becomes 4 bytes * 8 = 32 bytes, as each vertex contains 32 bytes in our allocated block
-     float vertices[] = {
-        //6 sets of vertices, one for each face
-        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-         0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+    // --- Vertex Data ---
+// Each face has a solid color (r,g,b)
+float vertices[] = {
+    // positions         // colors
+    // Back face (red)
+    -0.5f, -0.5f, -0.5f,  1.0f, 0.0f, 0.0f, 
+     0.5f, -0.5f, -0.5f,  1.0f, 0.0f, 0.0f, 
+     0.5f,  0.5f, -0.5f,  1.0f, 0.0f, 0.0f, 
+     0.5f,  0.5f, -0.5f,  1.0f, 0.0f, 0.0f, 
+    -0.5f,  0.5f, -0.5f,  1.0f, 0.0f, 0.0f, 
+    -0.5f, -0.5f, -0.5f,  1.0f, 0.0f, 0.0f, 
 
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+    // Front face (green)
+    -0.5f, -0.5f,  0.5f,  0.0f, 1.0f, 0.0f,
+     0.5f, -0.5f,  0.5f,  0.0f, 1.0f, 0.0f,
+     0.5f,  0.5f,  0.5f,  0.0f, 1.0f, 0.0f,
+     0.5f,  0.5f,  0.5f,  0.0f, 1.0f, 0.0f,
+    -0.5f,  0.5f,  0.5f,  0.0f, 1.0f, 0.0f,
+    -0.5f, -0.5f,  0.5f,  0.0f, 1.0f, 0.0f,
 
-        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-        -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+    // Left face (blue)
+    -0.5f,  0.5f,  0.5f,  0.0f, 0.0f, 1.0f,
+    -0.5f,  0.5f, -0.5f,  0.0f, 0.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f, 1.0f,
+    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f, 1.0f,
+    -0.5f,  0.5f,  0.5f,  0.0f, 0.0f, 1.0f,
 
-         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-         0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-         0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-         0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+    // Right face (yellow)
+     0.5f,  0.5f,  0.5f,  1.0f, 1.0f, 0.0f,
+     0.5f,  0.5f, -0.5f,  1.0f, 1.0f, 0.0f,
+     0.5f, -0.5f, -0.5f,  1.0f, 1.0f, 0.0f,
+     0.5f, -0.5f, -0.5f,  1.0f, 1.0f, 0.0f,
+     0.5f, -0.5f,  0.5f,  1.0f, 1.0f, 0.0f,
+     0.5f,  0.5f,  0.5f,  1.0f, 1.0f, 0.0f,
 
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-         0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+    // Bottom face (cyan)
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f, 1.0f,
+     0.5f, -0.5f, -0.5f,  0.0f, 1.0f, 1.0f,
+     0.5f, -0.5f,  0.5f,  0.0f, 1.0f, 1.0f,
+     0.5f, -0.5f,  0.5f,  0.0f, 1.0f, 1.0f,
+    -0.5f, -0.5f,  0.5f,  0.0f, 1.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f, 1.0f,
 
-        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
-    };
+    // Top face (magenta)
+    -0.5f,  0.5f, -0.5f,  1.0f, 0.0f, 1.0f,
+     0.5f,  0.5f, -0.5f,  1.0f, 0.0f, 1.0f,
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 1.0f,
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 1.0f,
+    -0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 1.0f,
+    -0.5f,  0.5f, -0.5f,  1.0f, 0.0f, 1.0f
+};
     unsigned int indices[] = {
         0, 1, 3, // first triangle
         1, 2, 3  // second triangle
     };
 
-    glm::vec3 cubePositions[] = {
-    glm::vec3( 0.0f,  0.0f,  0.0f), 
-    glm::vec3( 2.0f,  5.0f, -15.0f), 
-    glm::vec3(-1.5f, -2.2f, -2.5f),  
-    glm::vec3(-3.8f, -2.0f, -12.3f),  
-    glm::vec3( 2.4f, -0.4f, -3.5f),  
-    glm::vec3(-1.7f,  3.0f, -7.5f),  
-    glm::vec3( 1.3f, -2.0f, -2.5f),  
-    glm::vec3( 1.5f,  2.0f, -2.5f), 
-    glm::vec3( 1.5f,  0.2f, -1.5f), 
-    glm::vec3(-1.3f,  1.0f, -1.5f)  
-};
 
-    unsigned int VBOs[1], VAOs[1], EBOs[1];
-    glGenVertexArrays(1, VAOs);
-    glGenBuffers(1, VBOs);
-    glGenBuffers(1, EBOs);
+    // --- VAO/VBO setup ---
+    unsigned int VBO, VAO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
 
-    glBindVertexArray(VAOs[0]);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBOs[0]);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOs[0]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-    // position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    // positions
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-
-    
-    // texture coord attribute
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    // colors
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-
-    //unbind VAOs and VBOs
-    glBindBuffer(GL_ARRAY_BUFFER, 0); 
-    glBindVertexArray(0); 
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 
     // load and create a texture 
     // -------------------------
@@ -169,7 +233,7 @@ int main()
      //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
 
-
+    currColor = selectRandomColor(); //select our first color for the game!
     //RENDER LOOP
     while(!glfwWindowShouldClose(window))
     {
@@ -178,7 +242,7 @@ int main()
 
         //rendering commands (clear screen and set color). There's the color, depth, and stencil buffers. In this case, we reset the color buffer.
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glfwSetCursorPosCallback(window, mouse_callback);  
+        //glfwSetCursorPosCallback(window, mouse_callback);  
         //uses bitmap macros + bitwise or to pass a binary string s.t. all values to be cleared this frame are set to 1.
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         //track deltaTime and lastFrame to weight frame rate
@@ -186,6 +250,7 @@ int main()
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame; 
         triangleShader.use();
+
 
         //MODEL, VIEW, AND PROJECTION MATRICES
        // glm::mat4 model = glm::mat4(1.0f);
@@ -222,31 +287,57 @@ int main()
             unsigned int transformLoc = glGetUniformLocation(triangleShader.ID, "transform");
             glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(trans));
 
-            glBindVertexArray(VAOs[0]);
+            glBindVertexArray(VAO);
             //uncomment to draw single cube.
             //glDrawArrays(GL_TRIANGLES, 0, 36);
-
-            for (unsigned int i = 0; i < 10; i++){
+            
+            //random rotation code
+            int faces[2];
+            for(unsigned int i = 0; i < 2; i++)
+            {
                 glm::mat4 model = glm::mat4(1.0f);
-                model = glm::translate(model, cubePositions[i]); //different model matrices to move each block in world space
-                float angle = 20.0f * i;
-                if(i % 2 == 0)
-                model = glm::rotate(model, (float)glfwGetTime() * glm::radians(-50.0f), glm::vec3(0.5f, 1.0f, 0.0f)); 
-                else
-                model = glm::rotate(model, (float)glfwGetTime() * glm::radians(50.0f), glm::vec3(0.5f, 1.0f, 0.0f)); 
-                //send model, view and projection matrices to vertex shader
+                model = glm::translate(model, cubePositions[i]); // fixed position
+
+                // Apply rotation based on cubeRotation array
+                model = glm::rotate(model, cubeRotation[i].x, glm::vec3(1.0f, 0.0f, 0.0f)); // X-axis
+                model = glm::rotate(model, cubeRotation[i].y, glm::vec3(0.0f, 1.0f, 0.0f)); // Y-axis
+                model = glm::rotate(model, cubeRotation[i].z, glm::vec3(0.0f, 0.0f, 1.0f)); // Z-axis if needed
+
                 int modelLoc = glGetUniformLocation(triangleShader.ID, "model");
                 glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 
                 glDrawArrays(GL_TRIANGLES, 0, 36);
+                faces[i] = getFrontFace(model, cubePositions[i], camera.Position);
+                //std::cout<<faces[i] << std::endl;
             }
-
+            timeRemaining -= deltaTime;
+            if(floor(timeRemaining) <= lastPrintedTime-1){
+                lastPrintedTime = floor(timeRemaining);
+                std::cout << "time remaining: " << lastPrintedTime+1 << std::endl;
+            }
+            if(timeRemaining <= 0){
+                std::cout << "faces[0]: " << faces[0] << " faces[1]: " << faces[1] << " currColor: " << currColor << std::endl;
+                if(faces[0] == currColor && faces[1] == currColor){ //if theres no winner, continue
+                    lastPrintedTime = timeRemaining = resetTime;
+                    currColor = selectRandomColor();
+                }
+                else{
+                    handleOutcome(faces[0], faces[1], currColor);
+                    if(playerOneLives > 0 && playerTwoLives > 0){
+                        lastPrintedTime = timeRemaining = resetTime;
+                        currColor = selectRandomColor();
+                    }
+                    else{
+                        break;
+                    }
+                }
+            }
         //check and call events and swap the buffers (glfw uses double buffers for windowing, where one is written to and one is displayed to avoid artifacts)
         glfwSwapBuffers(window);
         glfwPollEvents();    
     }
-    glDeleteVertexArrays(1, VAOs);
-    glDeleteBuffers(1, VBOs);
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
 
     glfwTerminate();
     return 0;
@@ -284,7 +375,7 @@ GLFWwindow* initOpenGL(){
 
     //hide cursor when its on screen, capture cursor instead.
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);  
-    glfwSetScrollCallback(window, scroll_callback); 
+    //glfwSetScrollCallback(window, scroll_callback); 
     return window;
 }  
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
@@ -293,21 +384,46 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        camera.ProcessKeyboard(FORWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        camera.ProcessKeyboard(BACKWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        camera.ProcessKeyboard(LEFT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        camera.ProcessKeyboard(RIGHT, deltaTime);
+    float rotationSpeed = 3 * deltaTime; // radians per second
+
+    // Left cube (WASD)
+    if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        cubeRotation[0].x -= rotationSpeed; // rotate up
+    if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        cubeRotation[0].x += rotationSpeed; // rotate down
+    if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        cubeRotation[0].y -= rotationSpeed; // rotate left
+    if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        cubeRotation[0].y += rotationSpeed; // rotate right
+
+    // Right cube (IJKL)
+    if(glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS)
+        cubeRotation[1].x -= rotationSpeed; // rotate up
+    if(glfwGetKey(window, GLFW_KEY_K) == GLFW_PRESS)
+        cubeRotation[1].x += rotationSpeed; // rotate down
+    if(glfwGetKey(window, GLFW_KEY_J) == GLFW_PRESS)
+        cubeRotation[1].y -= rotationSpeed; // rotate left
+    if(glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS)
+        cubeRotation[1].y += rotationSpeed; // rotate right
+
+    /*
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS){}
+    //    camera.ProcessKeyboard(FORWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS){}
+    //    camera.ProcessKeyboard(BACKWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS){}
+     //   camera.ProcessKeyboard(LEFT, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS){}
+     //   camera.ProcessKeyboard(RIGHT, deltaTime);
+     */
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) //callback to resize window
 {
     glViewport(0, 0, width, height);
 } 
-
+//MOUSE FUNCTIONS NOT NEEDED SINCE WE CHANGED GAME IDEA
+/* 
 // glfw: whenever the mouse moves, this callback is called
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
 {
@@ -334,4 +450,4 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
     camera.ProcessMouseScroll(static_cast<float>(yoffset));
-}
+}*/
